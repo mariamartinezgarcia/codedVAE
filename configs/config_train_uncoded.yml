@@ -1,0 +1,18 @@
+train_config:
+  use_cuda: True # Use GPU if available
+  batch_size: 128
+  dataset: 'FMNIST'
+  n_epochs: 100
+  lr: 0.0001
+  n_samples: 10 # Numer of samples from the posterior used to compute the ELBO
+  save_model: True
+  checkpoint: 'default'
+  
+
+model_config:
+  inf_type: 'uncoded' # 'uncoded' for the uncoded case, 'rep' for the coded case with inference at bit level using repetition codes, 'hier' for the coded hierarchical case.
+  likelihood: 'ber' # Distribution used to compute the reconstruction term: 'gauss' for Gaussian likelihood, 'ber' for Bernoulli likelihood.
+  bits_info: 8 
+  beta: 15
+  type_encoder: 'dcgan'
+  type_decoder: 'cnnskip'
