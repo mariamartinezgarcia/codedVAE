@@ -12,11 +12,11 @@ We present a proof-of-concept using a Discrete VAE with binary latent variables 
 
 ## Repository Structure
 
-This repository contains the source code and demonstration scripts for training and evaluating the following model variants:
-- **Uncoded model**
-- **Coded model with repetition codes**
-- **Hierarchical coded model with polar codes**
-- **Hierarchical coded model without polar codes**
+This repository contains the source code and demos for training and evaluating the following model variants:
+- Uncoded model
+- Coded model with repetition codes
+- Hierarchical coded model with polar codes
+- Hierarchical coded model without polar codes
 
 #### `/src` - Coded VAE Source Code
 
