@@ -210,17 +210,29 @@ def get_iwae_uncoded(x, encoder, decoder, prior_m=0.5, beta=10, likelihood='gaus
 
     N = x.shape[0]
     x_flat = x.view(N,-1)
-
+    
     # Forward encoder
     bit_probs = encoder.forward(x)
 
     # Obtain n_samples from q(z|x) for each observed x
     qz_sample = sample_from_qz_given_x(bit_probs, beta=beta, n_samples=n_samples)  # shape [N, K, n_samples]
 
+    # Obtain prior z
+    logpz_m0 = torch.log(torch.tensor(0.5)) + (-beta*qz_sample) - torch.log((1-torch.exp(-beta))/beta)
+    logpz_m1 = torch.log(torch.tensor(0.5)) + (beta*(qz_sample-1)) - torch.log((1-torch.exp(-beta))/beta)
+    logpz = torch.stack((logpz_m0, logpz_m1), dim=-1)
+    logpz = torch.logsumexp(logpz, dim=-1)
+    logpz = torch.sum(logpz, dim=1) # Across dimensions (independent)
+
+    # Obtain posterior z
+    logqz_m0 = torch.log(1-(bit_probs.unsqueeze(2).repeat(1, 1, n_samples))) + (-beta*qz_sample) - torch.log((1-torch.exp(-beta))/beta)
+    logqz_m1 = torch.log(bit_probs.unsqueeze(2).repeat(1, 1, n_samples)) + (beta*(qz_sample-1)) - torch.log((1-torch.exp(-beta))/beta)
+    logqz = torch.stack((logqz_m0, logqz_m1), dim=-1)
+    logqz = torch.logsumexp((logqz), dim=-1)
+    logqz = torch.sum(logqz, dim=1)
+    
     # Compute the reconstruction term E_{q(z|x)}[log p(x|z)]
     reconstruction = torch.zeros((N, n_samples)).to(x.device)
-    log_z_x = torch.zeros((N, n_samples)).to(x.device)
-
     for n in range(n_samples):
         
         # Forward decoder
@@ -234,16 +246,15 @@ def get_iwae_uncoded(x, encoder, decoder, prior_m=0.5, beta=10, likelihood='gaus
             covar = torch.ones(out_decoder.shape[1]).to(x_flat.device) * 0.1
             reconstruction[:,n] = log_gaussian(x_flat, out_decoder, covar)    # Fixed variance
 
-    # Compute the KL Divergence term
-    prior_probs = (torch.ones(bit_probs.shape)*prior_m).to(x_flat.device)
-    kl_div = kl_div_bernoulli(bit_probs, prior_probs)
+    logw = reconstruction + logpz - logqz
+    logw_norm = logw - torch.logsumexp(logw, dim=1, keepdim=True) 
 
-    # Obtain the IWAE loss
-    log_norm_iweights = reconstruction - torch.logsumexp(reconstruction, dim=1, keepdim=True)
-    norm_iweights = torch.exp(log_norm_iweights.clone()).detach()
-    iwae = torch.mean(torch.sum(norm_iweights*reconstruction, dim=1)-kl_div)
+    w = logw_norm.exp().detach()
+    iwae = (w * logw).sum(1).mean()
 
-    return iwae, torch.mean(kl_div, dim=0), torch.mean(torch.mean(reconstruction, dim=1), dim=0)
+    kl_div = torch.mean(torch.sum((logqz-logpz), dim=1))
+
+    return iwae, kl_div, torch.mean(torch.mean(reconstruction, dim=1), dim=0)
 
 
 def get_elbo_rep(x, encoder, decoder, G, H, prior_m=0.5, beta=10, likelihood='gauss', n_samples=1):
